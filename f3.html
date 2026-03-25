@@ -1,0 +1,305 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Árvores Frutíferas · IFES Cachoeiro</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.css" />
+    <link rel="stylesheet" href="https://unpkg.com/leaflet.markercluster@1.5.3/dist/MarkerCluster.Default.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        body { height: 100vh; display: flex; flex-direction: column; background: #e8f5e9; }
+        
+        header { 
+            background: linear-gradient(135deg, #1b5e20 0%, #2e7d32 100%); 
+            color: white; 
+            padding: 0.8rem 2rem; 
+            display: flex; 
+            align-items: center; 
+            justify-content: space-between; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.2); 
+            z-index: 1000; 
+        }
+
+        .header-left { display: flex; align-items: center; gap: 15px; }
+        
+        /* Estilo da Logo RaJu */
+        .logo-raju {
+            width: 60px;
+            height: 60px;
+            background: white;
+            border-radius: 50%;
+            border: 2px solid #81c784;
+            object-fit: cover;
+        }
+
+        .title-container h1 { font-size: 1.4rem; line-height: 1.1; }
+        .title-container span { font-size: 0.85rem; color: #c8e6c9; font-weight: 400; }
+
+        .search-container { 
+            background: rgba(255,255,255,0.15); 
+            border-radius: 30px; 
+            padding: 0.3rem 1rem; 
+            display: flex; 
+            align-items: center; 
+            border: 1px solid #81c784; 
+            min-width: 250px; 
+        }
+        .search-container input { background: transparent; border: none; color: white; outline: none; width: 100%; margin-left: 10px; font-size: 0.9rem; }
+        .search-container input::placeholder { color: #c8e6c9; }
+
+        .filters-bar { background: #f1f8e9; padding: 0.8rem 2rem; display: flex; flex-wrap: wrap; gap: 1rem; align-items: center; border-bottom: 3px solid #2e7d32; z-index: 999; }
+        .filter-group { display: flex; align-items: center; gap: 8px; }
+        .filter-group select { padding: 0.5rem; border-radius: 10px; border: 1px solid #81c784; background: white; outline: none; min-width: 140px; cursor: pointer; }
+        
+        #map { flex: 1; width: 100%; z-index: 1; }
+        
+        .legend { background: white; padding: 12px; line-height: 20px; color: #333; box-shadow: 0 0 15px rgba(0,0,0,0.2); border-radius: 8px; max-height: 280px; overflow-y: auto; border-left: 5px solid #2e7d32; }
+        .legend i { width: 14px; height: 14px; float: left; margin-right: 8px; border-radius: 50%; margin-top: 3px; border: 1px solid #999; }
+        .legend-title { font-weight: bold; margin-bottom: 8px; color: #1b5e20; border-bottom: 1px solid #ccc; padding-bottom: 3px; font-size: 0.9rem; }
+
+        .btn-locate { background: #2e7d32; color: white; border: none; padding: 0.5rem 1.2rem; border-radius: 20px; cursor: pointer; margin-left: auto; font-weight: 600; transition: 0.3s; }
+        .btn-locate:hover { background: #1b5e20; transform: translateY(-2px); }
+        
+        footer { background: #c8e6c9; text-align: center; padding: 5px; font-size: 0.75rem; color: #1b5e20; }
+
+        @media (max-width: 768px) {
+            header { flex-direction: column; text-align: center; gap: 10px; }
+            .header-left { flex-direction: column; }
+        }
+    </style>
+</head>
+<body>
+
+<header>
+    <div class="header-left">
+        <img src="raju.png" onerror="this.src='raju.jpg'; this.onerror=null;" alt="Logo RaJu" class="logo-raju">
+        <div class="title-container">
+            <h1>Árvores Frutíferas do IFES Cachoeiro</h1>
+            <span>Grupo: Rayssa e Maria Júlia</span>
+        </div>
+    </div>
+    <div class="search-container">
+        <i class="fas fa-search"></i>
+        <input type="text" id="busca" placeholder="Filtrar por nome ou local...">
+    </div>
+</header>
+
+<div class="filters-bar">
+    <div class="filter-group">
+        <label>🌳 Árvore:</label>
+        <select id="filtroArvore"><option value="todas">Todas as Árvores</option></select>
+    </div>
+    <div class="filter-group">
+        <label>🍎 Fruta:</label>
+        <select id="filtroFruta"><option value="todas">Todas as Frutas</option></select>
+    </div>
+    <button class="btn-locate" id="btnLocalizar"><i class="fas fa-crosshairs"></i> Minha Posição</button>
+</div>
+
+<div id="map"></div>
+<footer>Projeto RaJu · 80 árvores mapeadas · IFES Campus Cachoeiro de Itapemirim</footer>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script>
+    (function() {
+        const emojis = {
+            "jambo": "🌸", "manga": "🥭", "mangas": "🥭", "mexerica": "🍊", "abacate": "🥑", 
+            "goiaba": "🍈", "abiu": "🟡", "laranja": "🍊", "coco": "🥥", "cajá": "🟡", 
+            "carambolas": "⭐", "caju": "🍎", "tamarina": "🤎", "berimba": "🟣", 
+            "limão": "🍋", "acerola": "🍒", "pitanga": "🔴", "banana": "🍌", 
+            "pinha": "🍏", "uva": "🍇", "mamão": "🧡", "seriguela": "🔴"
+        };
+
+        const arvoresData = [
+            { id:1, arvore:"jambeiro", fruta:"jambo", desc:"entre o bloco 04 e o bloco 06", lat:-20.802708, lng:-41.154755 },
+            { id:2, arvore:"mangueira", fruta:"mangas", desc:"do lado do bloco 06, atrás do estacionamento", lat:-20.802591, lng:-41.154840 },
+            { id:3, arvore:"mangueira", fruta:"mangas", desc:"do lado do bloco 06, atrás do estacionamento", lat:-20.802520, lng:-41.154793 },
+            { id:4, arvore:"jambeiro", fruta:"jambo", desc:"entre o bloco 05 e o bloco 07", lat:-20.802731, lng:-41.154370 },
+            { id:5, arvore:"jambeiro", fruta:"jambo", desc:"entre o bloco 07 e o bloco 09", lat:-20.802557, lng:-41.154244 },
+            { id:6, arvore:"jambeiro", fruta:"jambo", desc:"entre o bloco 07 e o bloco 09", lat:-20.802556, lng:-41.154105 },
+            { id:7, arvore:"mexeriqueira", fruta:"mexerica", desc:"atrás do bloco 09 e o bloco 07", lat:-20.802611, lng:-41.153940 },
+            { id:8, arvore:"mexeriqueira", fruta:"mexerica", desc:"atrás do bloco 09 e o bloco 07", lat:-20.802694, lng:-41.153997 },
+            { id:9, arvore:"mexeriqueira", fruta:"mexerica", desc:"atrás do bloco 09 e o bloco 07", lat:-20.802859, lng:-41.154056 },
+            { id:10, arvore:"mexeriqueira", fruta:"mexerica", desc:"atrás do bloco 09 e o bloco 07", lat:-20.802779, lng:-41.154053 },
+            { id:11, arvore:"mexeriqueira", fruta:"mexerica", desc:"atrás do bloco 09 e o bloco 07", lat:-20.802807, lng:-41.154051 },
+            { id:12, arvore:"abacateiro", fruta:"abacate", desc:"atrás do bloco 07", lat:-20.802807, lng:-41.154051 },
+            { id:13, arvore:"abacateiro", fruta:"abacate", desc:"atrás do bloco 07", lat:-20.802822, lng:-41.154073 },
+            { id:14, arvore:"goiabeira", fruta:"goiaba", desc:"atrás do bloco 09", lat:-20.802539, lng:-41.153956 },
+            { id:15, arvore:"goiabeira", fruta:"goiaba", desc:"atrás do bloco 07", lat:-20.802650, lng:-41.154036 },
+            { id:16, arvore:"goiabeira", fruta:"goiaba", desc:"atrás do bloco 07", lat:-20.802713, lng:-41.154079 },
+            { id:17, arvore:"abieiro", fruta:"abiu", desc:"atrás do bloco 07", lat:-20.802836, lng:-41.154100 },
+            { id:18, arvore:"laranjeira", fruta:"laranja", desc:"atrás do bloco 07", lat:-20.802780, lng:-41.154087 },
+            { id:19, arvore:"coqueiro", fruta:"coco", desc:"entre o bloco 01 e o bloco 03", lat:-20.803069, lng:-41.154612 },
+            { id:20, arvore:"coqueiro", fruta:"coco", desc:"entre o bloco 01 e o bloco 03", lat:-20.803075, lng:-41.154562 },
+            { id:21, arvore:"coqueiro", fruta:"coco", desc:"entrada do IFES", lat:-20.803010, lng:-41.155404 },
+            { id:22, arvore:"cajazeira", fruta:"cajá", desc:"na frente da entrada do IFES", lat:-20.803060, lng:-41.155906 },
+            { id:23, arvore:"caramboleira", fruta:"carambolas", desc:"do lado esquerdo da rua de entrada", lat:-20.802872, lng:-41.155587 },
+            { id:24, arvore:"mangueira", fruta:"mangas", desc:"do lado esquerdo da rua de entrada", lat:-20.802646, lng:-41.155578 },
+            { id:25, arvore:"mangueira", fruta:"mangas", desc:"do lado esquerdo da rua de entrada", lat:-20.802669, lng:-41.155604 },
+            { id:26, arvore:"mangueira", fruta:"mangas", desc:"do lado esquerdo da rua de entrada", lat:-20.802797, lng:-41.155645 },
+            { id:27, arvore:"cajueiro", fruta:"caju", desc:"do lado esquerdo da rua de entrada", lat:-20.802700, lng:-41.155859 },
+            { id:28, arvore:"cajueiro", fruta:"caju", desc:"do lado esquerdo da rua de entrada", lat:-20.802743, lng:-41.155873 },
+            { id:29, arvore:"goiabeira", fruta:"goiaba", desc:"lado da primeira escada perto do estacionamento", lat:-20.802895, lng:-41.155071 },
+            { id:30, arvore:"tamarineiro", fruta:"tamarina", desc:"na frente do estacionamento", lat:-20.802445, lng:-41.155098 },
+            { id:31, arvore:"abacateiro", fruta:"abacate", desc:"na frente do estacionamento", lat:-20.802394, lng:-41.155051 },
+            { id:32, arvore:"beribeira", fruta:"berimba", desc:"na frente do estacionamento", lat:-20.802427, lng:-41.155130 },
+            { id:33, arvore:"cajazeira", fruta:"cajá", desc:"na frente do estacionamento", lat:-20.802391, lng:-41.155043 },
+            { id:34, arvore:"limoeiro", fruta:"limão", desc:"na frente do estacionamento", lat:-20.802345, lng:-41.155015 },
+            { id:35, arvore:"aceroleira", fruta:"acerola", desc:"atrás do bloco 05", lat:-20.802852, lng:-41.154145 },
+            { id:36, arvore:"aceroleira", fruta:"acerola", desc:"atrás do bloco 05", lat:-20.803024, lng:-41.153984 },
+            { id:37, arvore:"pitangueira", fruta:"pitanga", desc:"atrás do bloco 05", lat:-20.802838, lng:-41.154098 },
+            { id:38, arvore:"bananeira", fruta:"banana", desc:"atrás do bloco 05", lat:-20.802900, lng:-41.154090 },
+            { id:39, arvore:"bananeira", fruta:"banana", desc:"atrás do bloco 05", lat:-20.802900, lng:-41.154072 },
+            { id:40, arvore:"bananeira", fruta:"banana", desc:"atrás do bloco 05", lat:-20.802900, lng:-41.154074 },
+            { id:41, arvore:"bananeira", fruta:"banana", desc:"atrás do bloco 05", lat:-20.802933, lng:-41.154045 },
+            { id:42, arvore:"bananeira", fruta:"banana", desc:"atrás do bloco 05", lat:-20.802916, lng:-41.154037 },
+            { id:43, arvore:"bananeira", fruta:"banana", desc:"atrás do bloco 05", lat:-20.802940, lng:-41.154042 },
+            { id:44, arvore:"pinheira", fruta:"pinha", desc:"atrás do bloco 03", lat:-20.803045, lng:-41.154246 },
+            { id:45, arvore:"mexeriqueira", fruta:"mexerica", desc:"atrás do bloco 03", lat:-20.803050, lng:-41.154266 },
+            { id:46, arvore:"mangueira", fruta:"manga", desc:"atrás do bloco 01", lat:-20.803192, lng:-41.154340 },
+            { id:47, arvore:"mangueira", fruta:"manga", desc:"atrás do bloco 00", lat:-20.803160, lng:-41.154321 },
+            { id:48, arvore:"videira", fruta:"uva", desc:"atrás do bloco 00", lat:-20.803652, lng:-41.154502 },
+            { id:49, arvore:"videira", fruta:"uva", desc:"atrás do bloco 00", lat:-20.803655, lng:-41.154483 },
+            { id:50, arvore:"videira", fruta:"uva", desc:"atrás do bloco 00", lat:-20.803668, lng:-41.154497 },
+            { id:51, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802882, lng:-41.154953 },
+            { id:52, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802855, lng:-41.154929 },
+            { id:53, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802822, lng:-41.154911 },
+            { id:54, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802794, lng:-41.154895 },
+            { id:55, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802769, lng:-41.154878 },
+            { id:56, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802729, lng:-41.154857 },
+            { id:57, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802700, lng:-41.154836 },
+            { id:58, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802649, lng:-41.154800 },
+            { id:59, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802624, lng:-41.154783 },
+            { id:60, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802608, lng:-41.154766 },
+            { id:61, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802585, lng:-41.154757 },
+            { id:62, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802553, lng:-41.154739 },
+            { id:63, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802538, lng:-41.154723 },
+            { id:64, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802538, lng:-41.154723 },
+            { id:65, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802539, lng:-41.154726 },
+            { id:66, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802510, lng:-41.154709 },
+            { id:67, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802894, lng:-41.154968 },
+            { id:68, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802894, lng:-41.154968 },
+            { id:69, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802894, lng:-41.154968 },
+            { id:70, arvore:"coqueiro", fruta:"coco", desc:"na lateral dos Blocos pares", lat:-20.802690, lng:-41.154829 },
+            { id:71, arvore:"mexeriqueira", fruta:"mexerica", desc:"atrás do bloco 00", lat:-20.803357, lng:-41.154388 },
+            { id:72, arvore:"mamoeiro", fruta:"mamão", desc:"atrás do bloco 00", lat:-20.803698, lng:-41.154664 },
+            { id:73, arvore:"mamoeiro", fruta:"mamão", desc:"atrás do bloco 00", lat:-20.803700, lng:-41.154646 },
+            { id:74, arvore:"goiabeira", fruta:"goiaba", desc:"atrás da cantina", lat:-20.803595, lng:-41.154592 },
+            { id:75, arvore:"mangueira", fruta:"manga", desc:"atrás da cantina", lat:-20.803625, lng:-41.155129 },
+            { id:76, arvore:"laranjeira", fruta:"laranja", desc:"atrás da cantina", lat:-20.803621, lng:-41.155086 },
+            { id:77, arvore:"aceroleira", fruta:"acerola", desc:"atrás da cantina", lat:-20.803611, lng:-41.155030 },
+            { id:78, arvore:"limoeiro", fruta:"limão", desc:"ao lado da última escada perto da quadra", lat:-20.801994, lng:-41.154498 },
+            { id:79, arvore:"serigueleira", fruta:"seriguela", desc:"atrás do bloco 00", lat:-20.803680, lng:-41.154646 },
+            { id:80, arvore:"serigueleira", fruta:"seriguela", desc:"atrás do bloco 00", lat:-20.803680, lng:-41.154620 }
+        ];
+
+        const map = L.map('map').setView([-20.8030, -41.1548], 17);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+        const markersCluster = L.markerClusterGroup({ spiderfyOnMaxZoom: true, showCoverageOnHover: false });
+        const marcadores = [];
+
+        function getColor(arvore) {
+            const colors = ['#e63946', '#f4a261', '#2a9d8f', '#9c89b8', '#ffb703', '#52b788', '#1e6091', '#d62828', '#003049', '#7f5539', '#588157', '#3d5a80', '#98c1d9', '#ee6c4d', '#293241'];
+            let hash = 0;
+            for (let i = 0; i < arvore.length; i++) hash = arvore.charCodeAt(i) + ((hash << 5) - hash);
+            return colors[Math.abs(hash) % colors.length];
+        }
+
+        const sArv = document.getElementById('filtroArvore');
+        const sFru = document.getElementById('filtroFruta');
+        const coresLegenda = {};
+
+        arvoresData.forEach(item => {
+            const cor = getColor(item.arvore);
+            coresLegenda[item.arvore] = {cor, fruta: item.fruta};
+
+            const marker = L.marker([item.lat, item.lng], {
+                icon: L.divIcon({
+                    html: `<div style="background:${cor}; width:24px; height:24px; border-radius:50%; border:2px solid #fff; display:flex; align-items:center; justify-content:center; font-size:14px; box-shadow:0 2px 5px rgba(0,0,0,0.3);">${emojis[item.fruta.toLowerCase()] || '🌳'}</div>`,
+                    className: 'custom-icon', iconSize: [24, 24]
+                })
+            });
+            marker.arvore = item.arvore;
+            marker.fruta = item.fruta;
+            marker.desc = item.desc;
+            marker.bindPopup(`
+                <div style="font-size:14px;">
+                    <strong style="color:#1b5e20; text-transform:uppercase;">${item.arvore}</strong><br>
+                    <b>Fruta:</b> ${emojis[item.fruta.toLowerCase()] || ''} ${item.fruta}<br>
+                    <b>Local:</b> ${item.desc}
+                </div>
+            `);
+            marcadores.push(marker);
+            markersCluster.addLayer(marker);
+        });
+        map.addLayer(markersCluster);
+
+        const uniqueArv = [...new Set(arvoresData.map(d => d.arvore))].sort();
+        uniqueArv.forEach(a => {
+            const f = arvoresData.find(d => d.arvore === a).fruta;
+            sArv.innerHTML += `<option value="${a}">${emojis[f.toLowerCase()] || '🌳'} ${a}</option>`;
+        });
+
+        const uniqueFru = [...new Set(arvoresData.map(d => d.fruta.toLowerCase()))].sort();
+        uniqueFru.forEach(f => {
+            sFru.innerHTML += `<option value="${f}">${emojis[f] || '🍎'} ${f}</option>`;
+        });
+
+        const legend = L.control({position: 'bottomright'});
+        legend.onAdd = function () {
+            const div = L.DomUtil.create('div', 'legend');
+            div.innerHTML = '<div class="legend-title">Cores das Árvores</div>';
+            const sortedKeys = Object.keys(coresLegenda).sort();
+            sortedKeys.forEach(arv => {
+                const info = coresLegenda[arv];
+                div.innerHTML += `<div><i style="background:${info.cor}"></i> ${emojis[info.fruta.toLowerCase()] || ''} ${arv}</div>`;
+            });
+            return div;
+        };
+        legend.addTo(map);
+
+        function filtrar(e) {
+            const val = e.target.value.toLowerCase();
+            const id = e.target.id;
+            if (id === 'filtroFruta' && val !== 'todas') {
+                const found = arvoresData.find(d => d.fruta.toLowerCase() === val);
+                if(found) sArv.value = found.arvore;
+            } else if (id === 'filtroArvore' && val !== 'todas') {
+                const found = arvoresData.find(d => d.arvore === val);
+                if(found) sFru.value = found.fruta.toLowerCase();
+            }
+            const fa = sArv.value;
+            const ff = sFru.value;
+            markersCluster.clearLayers();
+            marcadores.forEach(m => {
+                const matchArv = (fa === 'todas' || m.arvore === fa);
+                const matchFru = (ff === 'todas' || m.fruta.toLowerCase() === ff);
+                if (matchArv && matchFru) markersCluster.addLayer(m);
+            });
+        }
+
+        sArv.addEventListener('change', filtrar);
+        sFru.addEventListener('change', filtrar);
+        
+        document.getElementById('busca').addEventListener('input', (e) => {
+            const term = e.target.value.toLowerCase();
+            markersCluster.clearLayers();
+            marcadores.forEach(m => {
+                const texto = (m.arvore + m.fruta + m.desc).toLowerCase();
+                if (texto.includes(term)) markersCluster.addLayer(m);
+            });
+        });
+
+        document.getElementById('btnLocalizar').onclick = () => map.locate({setView: true, maxZoom: 18});
+        map.on('locationfound', (e) => {
+            L.circle(e.latlng, e.accuracy).addTo(map);
+            L.marker(e.latlng).addTo(map).bindPopup("Você está aqui!").openPopup();
+        });
+    })();
+</script>
+</body>
+</html>
